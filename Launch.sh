@@ -1,7 +1,7 @@
 #!/bin/bash
 printf "\e]0;Project Rusty\a"
 # Navigate to the bot directory
-cd /home/nas/destiny2-discord-bot/ || { echo "Directory not found"; exit 1; }
+cd /main/destiny2-discord-bot/ || { echo "Directory not found"; exit 1; }
 
 # Activate the virtual environment
 source venv/bin/activate || { echo "Failed to activate virtual environment"; exit 1; }
