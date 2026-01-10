@@ -1,8 +1,8 @@
 ## **What is Project Rusty?**
-Project Rusty is a custom discord bot ment to help users create Raid/Dungeon events. 
+- Project Rusty is a custom discord bot ment to help users create Raid/Dungeon events. 
 
 Doesn't Charlemagne (warmind.io) do most of that?
-Yes, and no. Rusty was created to take over this task from Charlemagne by simplifying the process a little. Rusty also has the ability to create server specific custom game templates to make creating events for other games simple as well. 
+- Yes, and no. Rusty was created to take over this task from Charlemagne by simplifying the process a little. Rusty also has the ability to create server specific custom game templates to make creating events for other games simple as well. 
 
 
 List of dependencies for your Python environment:
