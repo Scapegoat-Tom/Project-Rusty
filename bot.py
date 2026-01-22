@@ -339,16 +339,22 @@ class EditEventModal(discord.ui.Modal, title="Edit Event"):
         event["datetime"] = new_event_time.isoformat()
         event["timezone"] = self.timezone.value
         
-        # Reset reminder flags if time changed
+        # Check if time changed
         old_time = datetime.fromisoformat(self.event["datetime"])
-        if new_event_time != old_time:
+        if old_time.tzinfo is None:
+            old_time = pytz.UTC.localize(old_time)
+        time_changed = new_event_time != old_time
+        
+        guild = interaction.guild
+        
+        if time_changed:
+            # Reset reminder flags
             event["reminded_15"] = False
             event["reminded_5"] = False
             event["voice_created"] = False
             
-            # If voice channel was already created, delete it
+            # Delete existing voice channel if it was already created
             if event.get("voice_channel_id"):
-                guild = interaction.guild
                 try:
                     voice_channel = guild.get_channel(event["voice_channel_id"])
                     if voice_channel:
@@ -360,7 +366,6 @@ class EditEventModal(discord.ui.Modal, title="Edit Event"):
         save_events(self.guild_id, events)
         
         # Update the message
-        guild = interaction.guild
         embed = create_event_embed(event, guild)
         
         try:
@@ -370,13 +375,13 @@ class EditEventModal(discord.ui.Modal, title="Edit Event"):
         except Exception as e:
             print(f"Failed to update message: {e}")
         
-        # Update Discord scheduled event
+        # Handle Discord scheduled event update
         if event.get("scheduled_event_id"):
             try:
                 scheduled_event = guild.get_scheduled_event(event["scheduled_event_id"])
                 if scheduled_event:
                     # Determine the correct title based on game type
-                    if event["game"] == "Destiny2":
+                    if event["game"] == "Destiny 2":
                         discord_event_title = f"Destiny 2 - {event['mode']}: {event['title']}"
                     else:
                         if event["mode"]:
@@ -384,14 +389,59 @@ class EditEventModal(discord.ui.Modal, title="Edit Event"):
                         else:
                             discord_event_title = event['game']
                     
-                    await scheduled_event.edit(
-                        name=discord_event_title,
-                        description=f"{event['description'][:1000] if event['description'] else ''}\n\nA voice channel will be created, and a reminder will be sent 15 min before the event starts. Please feel free to join the fun by following the link to our events channel.",
-                        start_time=new_event_time,
-                        end_time=new_event_time + timedelta(hours=2)
-                    )
+                    description = f"{event['description'][:1000] if event['description'] else ''}\n\nA voice channel will be created, and a reminder will be sent 15 min before the event starts. Please feel free to join the fun by following the link to our events channel."
+                    
+                    if time_changed:
+                        # Time changed - check if event has already started
+                        now = datetime.now(pytz.UTC)
+                        event_has_started = now >= old_time
+                        
+                        if event_has_started:
+                            # Event already started - delete and recreate
+                            try:
+                                await scheduled_event.delete()
+                            except Exception as e:
+                                print(f"Failed to delete old scheduled event: {e}")
+                            
+                            # Create new scheduled event
+                            try:
+                                new_scheduled_event = await guild.create_scheduled_event(
+                                    name=discord_event_title,
+                                    description=description,
+                                    start_time=new_event_time,
+                                    end_time=new_event_time + timedelta(hours=2),
+                                    location=f"https://discord.com/channels/{guild.id}/{event['message_channel_id']}/{event['message_id']}",
+                                    entity_type=discord.EntityType.external,
+                                    privacy_level=discord.PrivacyLevel.guild_only
+                                )
+                                event["scheduled_event_id"] = new_scheduled_event.id
+                                save_events(self.guild_id, events)
+                            except Exception as e:
+                                print(f"Failed to create new scheduled event: {e}")
+                                event["scheduled_event_id"] = None
+                                save_events(self.guild_id, events)
+                        else:
+                            # Event hasn't started - update time and details
+                            try:
+                                await scheduled_event.edit(
+                                    name=discord_event_title,
+                                    description=description,
+                                    start_time=new_event_time,
+                                    end_time=new_event_time + timedelta(hours=2)
+                                )
+                            except Exception as e:
+                                print(f"Failed to update scheduled event time: {e}")
+                    else:
+                        # Only details changed (title/description), not time - just edit
+                        try:
+                            await scheduled_event.edit(
+                                name=discord_event_title,
+                                description=description
+                            )
+                        except Exception as e:
+                            print(f"Failed to update scheduled event details: {e}")
             except Exception as e:
-                print(f"Failed to update scheduled event: {e}")
+                print(f"Failed to handle scheduled event: {e}")
         
         # Log the edit
         config = load_config(self.guild_id)
@@ -404,10 +454,12 @@ class EditEventModal(discord.ui.Modal, title="Edit Event"):
             )
             log_embed.add_field(name="Edited by", value=interaction.user.mention, inline=True)
             log_embed.add_field(name="Event ID", value=self.event_id, inline=True)
-            await log_channel.send(embed=log_embed)
+            if time_changed:
+                log_embed.add_field(name="Note", value="Time changed - voice channel and reminders reset", inline=False)
+                await log_channel.send(embed=log_embed)
         
         await interaction.followup.send("Event updated successfully!", ephemeral=True)
-
+        
 class CancelModal(discord.ui.Modal, title="Cancel Event"):
     def __init__(self, event_id, guild_id):
         super().__init__()
