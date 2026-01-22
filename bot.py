@@ -34,7 +34,7 @@ DEFAULT_RAIDS = [
     "Root of Nightmares", "Crota's End", "Salvation's Edge",
     "The Desert Perpetual"
 ]
-
+ 
 DEFAULT_DUNGEONS = [
     "Shattered Throne", "Pit of Heresy", "Prophecy",
     "Grasp of Avarice", "Duality", "Spire of the Watcher",
@@ -330,7 +330,7 @@ class EditEventModal(discord.ui.Modal, title="Edit Event"):
         
         # Update event data
         event["title"] = self.title_field.value
-        event["description"] = self.description.value
+        event["description"] = self.description.value if self.description.value else ""
         event["datetime"] = new_event_time.isoformat()
         event["timezone"] = self.timezone.value
         
@@ -340,6 +340,17 @@ class EditEventModal(discord.ui.Modal, title="Edit Event"):
             event["reminded_15"] = False
             event["reminded_5"] = False
             event["voice_created"] = False
+            
+            # If voice channel was already created, delete it
+            if event.get("voice_channel_id"):
+                guild = interaction.guild
+                try:
+                    voice_channel = guild.get_channel(event["voice_channel_id"])
+                    if voice_channel:
+                        await voice_channel.delete()
+                    event["voice_channel_id"] = None
+                except Exception as e:
+                    print(f"Failed to delete voice channel during edit: {e}")
         
         save_events(self.guild_id, events)
         
@@ -360,7 +371,7 @@ class EditEventModal(discord.ui.Modal, title="Edit Event"):
                 scheduled_event = guild.get_scheduled_event(event["scheduled_event_id"])
                 if scheduled_event:
                     # Determine the correct title based on game type
-                    if event["game"] == "Destiny 2":
+                    if event["game"] == "Destiny2":
                         discord_event_title = f"Destiny 2 - {event['mode']}: {event['title']}"
                     else:
                         if event["mode"]:
@@ -414,7 +425,7 @@ def create_event_embed(event, guild):
     embed = discord.Embed(
         title=event["title"],
         description=event["description"],
-        color=discord.Color.blue()
+        color=0xf08328
     )
     
     event_time = datetime.fromisoformat(event["datetime"])
@@ -687,7 +698,7 @@ async def setup(interaction: discord.Interaction,
         "event_log_channel_id": event_log_channel.id,
         "custom_games": []
     }
-    
+
     save_config(guild.id, config)
     
     await interaction.followup.send(f"Setup complete!\n"
@@ -751,7 +762,7 @@ async def reset(interaction: discord.Interaction):
         await interaction.response.send_message("Configuration reset! Run /setup to reconfigure.", ephemeral=True)
     else:
         await interaction.response.send_message("No configuration found!", ephemeral=True)
-
+ 
 async def raid_autocomplete(interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
     raids = load_destiny_content(DESTINY_RAIDS_FILE)
     return [
@@ -861,7 +872,7 @@ class CreateCustomGameModal(discord.ui.Modal, title="Create Custom Game Template
                     ephemeral=True
                 )
                 return
-        
+    
         game_data = {
             "name": self.game_name.value,
             "mode": self.game_mode.value if self.game_mode.value else "",
