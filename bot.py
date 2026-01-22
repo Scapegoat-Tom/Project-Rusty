@@ -398,6 +398,11 @@ class EditEventModal(discord.ui.Modal, title="Edit Event"):
                         
                         if event_has_started:
                             # Event already started - delete and recreate
+                            # Mark that we're recreating to prevent cleanup handler from triggering
+                            events = load_events(self.guild_id)
+                            events[self.event_id]["_recreating_scheduled_event"] = True
+                            save_events(self.guild_id, events)
+                            
                             try:
                                 await scheduled_event.delete()
                             except Exception as e:
@@ -417,12 +422,14 @@ class EditEventModal(discord.ui.Modal, title="Edit Event"):
                                 # Reload events to avoid overwriting other changes
                                 events = load_events(self.guild_id)
                                 events[self.event_id]["scheduled_event_id"] = new_scheduled_event.id
+                                events[self.event_id].pop("_recreating_scheduled_event", None)  # Remove flag
                                 save_events(self.guild_id, events)
                             except Exception as e:
                                 print(f"Failed to create new scheduled event: {e}")
                                 # Reload events to avoid overwriting other changes
                                 events = load_events(self.guild_id)
                                 events[self.event_id]["scheduled_event_id"] = None
+                                events[self.event_id].pop("_recreating_scheduled_event", None)  # Remove flag
                                 save_events(self.guild_id, events)
                         else:
                             # Event hasn't started - update time and details
@@ -1396,6 +1403,9 @@ async def on_scheduled_event_delete(event):
     
     for event_id, event_data in list(events.items()):
         if event_data.get("scheduled_event_id") == event.id:
+            # Check if we're recreating this event - if so, don't clean up
+            if event_data.get("_recreating_scheduled_event"):
+                return
             # Event was deleted - silently clean up without notifying users
             
             # Log cancellation (admin only)
@@ -1440,7 +1450,7 @@ async def on_scheduled_event_delete(event):
             del events[event_id]
             save_events(guild.id, events)
             break
-
+            
 @bot.event
 async def on_raw_message_delete(payload):
     """Handle when an event message is deleted"""
