@@ -8,6 +8,11 @@ import asyncio
 from datetime import datetime, timedelta
 from typing import Optional, List
 import pytz
+from dotenv import load_dotenv
+
+load_dotenv()
+
+TOKEN = os.getenv('DISCORD_BOT_TOKEN')
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -1438,10 +1443,16 @@ async def on_raw_message_delete(payload):
             save_events(guild.id, events)
             break
 
+async def main():
+    async with bot:
+        await load_cogs()
+        # Load your bot token from environment variable or config
+        TOKEN = os.getenv('DISCORD_BOT_TOKEN')
+        if not TOKEN:
+            print("Error: DISCORD_BOT_TOKEN not found in environment variables")
+            return
+        await bot.start(TOKEN)
+
 # Run the bot
-if __name__ == "__main__":
-    token = os.getenv("BOT_TOKEN")
-    if not token:
-        print("ERROR: BOT_TOKEN not set.")
-        exit(1)
-    bot.run(token)
+if __name__ == '__main__':
+    asyncio.run(main())
