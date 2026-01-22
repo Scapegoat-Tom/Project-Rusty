@@ -414,11 +414,15 @@ class EditEventModal(discord.ui.Modal, title="Edit Event"):
                                     entity_type=discord.EntityType.external,
                                     privacy_level=discord.PrivacyLevel.guild_only
                                 )
-                                event["scheduled_event_id"] = new_scheduled_event.id
+                                # Reload events to avoid overwriting other changes
+                                events = load_events(self.guild_id)
+                                events[self.event_id]["scheduled_event_id"] = new_scheduled_event.id
                                 save_events(self.guild_id, events)
                             except Exception as e:
                                 print(f"Failed to create new scheduled event: {e}")
-                                event["scheduled_event_id"] = None
+                                # Reload events to avoid overwriting other changes
+                                events = load_events(self.guild_id)
+                                events[self.event_id]["scheduled_event_id"] = None
                                 save_events(self.guild_id, events)
                         else:
                             # Event hasn't started - update time and details
@@ -459,6 +463,8 @@ class EditEventModal(discord.ui.Modal, title="Edit Event"):
                 await log_channel.send(embed=log_embed)
         
         await interaction.followup.send("Event updated successfully!", ephemeral=True)
+
+
         
 class CancelModal(discord.ui.Modal, title="Cancel Event"):
     def __init__(self, event_id, guild_id):
